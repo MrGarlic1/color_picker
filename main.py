@@ -1,6 +1,6 @@
 import numpy as np
 import cv2
-from random import choice
+
 
 def get_palette(img):
     """
