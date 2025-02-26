@@ -44,18 +44,50 @@ def main():
 
     img_rgb, img_hls = read_image(filename="Static/FortiClient.png")
 
-    avg_color = np.average(img_rgb, axis=0).astype(int)[0:3]
     total_pixels = len(img_rgb)
     avg_color = np.average(img_rgb, axis=0).astype(np.uint8)
-    print(
-        f"Average Color (RGB): {avg_color}"
-    )
+    print(f"Average Color (RGB): {avg_color}")
+    print(f"Image Pixels: {total_pixels}")
 
     unique_image, frequencies = get_color_frequency(img=img_rgb)
     print(frequencies)
 
+    test = np.array([[[255, 50, 50]]], dtype=np.uint8)
+    test = cv2.cvtColor(test, cv2.COLOR_RGB2HLS)
+
+    get_primary_color(img=img_hls, frequencies=frequencies, avg_color=avg_color)
+
+
+def get_primary_color(img: np.array, frequencies, avg_color: np.array):
+    """
+    Inputs: Image (n*3 array of HLS color values)
+    Image color frequency (n length np array of color frequencies)
+    Image average color (1x3 NP array of RGB value)
+    Outputs: Tuple containing RGB color values of primary color
     """
 
+    # Convert to float to do math
+    img = img.astype(dtype=np.float16)
+    frequencies = frequencies.astype(dtype=np.float16)
+
+    # PARAMETERS
+    frequency_threshold = 0
+    frequency_weight = 0.5
+    saturation_threshold = 0
+    saturation_weight = 0
+    luminosity_min_threshold = 0
+    luminosity_max_threshold = 0
+    luminosity_weight = 0
+    distance_from_average_threshold = 0
+    distance_from_average_weight = 0
+    hue_priority = "[equation to boost magenta color family and reduce tan]"
+    hue_weight = 0
+
+    frequency_weights = frequencies/len(img)*frequency_weight
+    print(frequency_weights)
+
+
+    """
     color_group_range = 10
     primary_min_distance_from_average = 50
     primary_max_brightness = 200
@@ -196,5 +228,7 @@ def main():
     cv2.destroyAllWindows()
 
     """
+
+
 if __name__ == "__main__":
     main()
