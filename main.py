@@ -1,31 +1,60 @@
 import numpy as np
 import cv2
-import colorsys
+
 
 def read_image(filename: str) -> np.array:
+    """
+    Inputs: String relative/absolute path to image
+    Outputs: 2d np array of pixel HLS color values, sorted by frequency
+    """
     if filename.endswith(".png"):
         img = cv2.imread(filename, cv2.IMREAD_UNCHANGED)
-        flat_img = img.reshape(-1, 4)
-        flat_img = flat_img[flat_img[:, 3] > 200][:, :3]
+        img = cv2.cvtColor(img, cv2.COLOR_BGRA2RGBA)
+
+        img = img.reshape(-1, 4)
+        img = img[img[:, 3] > 250][:, :3]
+        np.savetxt('my_filenmame', img, fmt='%4.6f', delimiter=' ')
+        img_hls = cv2.cvtColor(np.array([img]), cv2.COLOR_RGB2HLS)
+        img_hls = img_hls.reshape(-1, 3)
+
     else:
         img = cv2.imread(filename)
-        flat_img = img.reshape(-1, 3)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        img = img.reshape(-1, 3)
+        img_hls = cv2.cvtColor(img, cv2.COLOR_RGB2HLS)
+        img_hls = img_hls.reshape(-1, 3)
+    
+    return img, img_hls
 
-    return flat_img
+
+def get_color_frequency(img: np.array):
+    """
+    Inputs: Image(Nx3 array of color values)
+    Outputs: Nx3 array of unique color values sorted by frequency, and corresponding frequencies
+    """
+
+    unique_elements, frequency = np.unique(img, axis=0, return_counts=True)
+    sorted_indexes = np.argsort(frequency)[::-1]
+    sorted_by_freq = unique_elements[sorted_indexes]
+
+    return sorted_by_freq, np.sort(frequency)[::-1]
 
 
 def main():
 
-    filename = "Static/volcano.jpg"
-    if filename.endswith(".png"):
-        img = cv2.imread(filename, cv2.IMREAD_UNCHANGED)
-        flat_img = img.reshape(-1, 4)
-        flat_img = flat_img[flat_img[:, 3] > 200][:, :3]
-    else:
-        img = cv2.imread(filename)
-        flat_img = img.reshape(-1, 3)
-    avg_color = np.average(flat_img, axis=0).astype(int)[0:3]
-    total_pixels = len(flat_img)
+    img_rgb, img_hls = read_image(filename="Static/FortiClient.png")
+
+    avg_color = np.average(img_rgb, axis=0).astype(int)[0:3]
+    total_pixels = len(img_rgb)
+    avg_color = np.average(img_rgb, axis=0).astype(np.uint8)
+    print(
+        f"Average Color (RGB): {avg_color}"
+    )
+
+    unique_image, frequencies = get_color_frequency(img=img_rgb)
+    print(frequencies)
+
+    """
 
     color_group_range = 10
     primary_min_distance_from_average = 50
@@ -166,6 +195,6 @@ def main():
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
-
+    """
 if __name__ == "__main__":
     main()
