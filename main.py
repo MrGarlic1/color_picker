@@ -32,7 +32,7 @@ def read_image(filename: str) -> np.array:
 
 
 def get_color_frequency(img: np.array, color_group_range: int):
-    rgb_vals = range(round(color_group_range // 2), 255 + color_group_range // 2, color_group_range)
+    rgb_vals = range(round(color_group_range // 2), int(255 + color_group_range / 1.5), color_group_range)
 
     groupings = np.zeros(shape=(len(rgb_vals)**3, 3), dtype=np.uint8)
     frequencies = np.zeros(shape=len(rgb_vals)**3, dtype=np.int32)
@@ -96,8 +96,8 @@ def get_primary_color(img: np.array, frequencies, avg_color: np.array, total_pix
     luminosity_min_threshold = 0.2*255
     luminosity_max_threshold = 0.3*255
     luminosity_weight = 0.25
-    # distance_from_average_threshold = 0
-    # distance_from_average_weight = 0
+    distance_from_average_threshold = 50
+    distance_from_average_weight = 0.6
     # hue_priority = "[equation to boost magenta color family and reduce tan]"
     # hue_weight = 0
 
@@ -124,19 +124,26 @@ def get_primary_color(img: np.array, frequencies, avg_color: np.array, total_pix
     adjustment = 2 if max(luminosity_score) < 0 else 0
     luminosity_score = luminosity_weight * (adjustment + luminosity_score/abs(max(luminosity_score)))
 
-    final_score = frequency_score + saturation_score + luminosity_score
+    distance_from_average_score = (
+            1 - 1 / distance_from_average_threshold**2 *
+            (img[:, 0] - avg_color[0])**2
+    )
+    adjustment = 2 if max(distance_from_average_score) < 0 else 0
+    distance_from_average_score = distance_from_average_weight * (adjustment + distance_from_average_score)/abs(max(distance_from_average_score))
+
+    final_score = frequency_score + saturation_score + luminosity_score + distance_from_average_score
 
     idx = final_score.argmax()
     score = final_score[idx]
     color = img[idx, :].astype(np.uint8)
 
-    print(img[idx, :])
     primary_color = cv2.cvtColor(np.array([[img[idx, :]]], dtype=np.uint8), cv2.COLOR_HLS2RGB)
     #print(color)
     #print(primary_color)
     print(f"Frequency Score: {frequency_score[idx]}")
     print(f"Saturation Score: {saturation_score[idx]}")
     print(f"Luminosity Score: {luminosity_score[idx]}")
+    print(f"Distance from Average Score: {distance_from_average_score[idx]}")
     #print(score)
     #print(frequencies[idx])
 
@@ -144,25 +151,25 @@ def get_primary_color(img: np.array, frequencies, avg_color: np.array, total_pix
 
 
 def main():
-    filename = "Static/fern.png"
+    filename = "Static/volcano.jpg"
     img_rgb, img_hls = read_image(filename=filename)
 
     total_pixels = len(img_rgb)
     avg_color = np.average(img_rgb, axis=0).astype(np.uint8)
+    avg_color_hls = cv2.cvtColor(np.array([[avg_color]]), cv2.COLOR_RGB2HLS).reshape(3)
     print(f"Average Color (RGB): {avg_color}")
+    print(f"Average Color (HLS): {avg_color_hls}")
     print(f"Image Pixels: {total_pixels}")
 
     img_hls, frequencies = get_color_frequency(img=img_rgb, color_group_range=15)
 
-    primary_color = get_primary_color(img=img_hls, frequencies=frequencies, avg_color=avg_color, total_pixels=total_pixels)
+    primary_color = get_primary_color(img=img_hls, frequencies=frequencies, avg_color=avg_color_hls, total_pixels=total_pixels)
     print(f"Primary Color (RGB): {primary_color}")
 
     full_image = cv2.imread(filename=filename, flags=cv2.IMREAD_UNCHANGED)
 
     avg_color_bgr = cv2.cvtColor(np.array([[avg_color]], dtype=np.uint8), cv2.COLOR_RGB2BGR).reshape(1, 3)
     primary_color_bgr = cv2.cvtColor(np.array([[primary_color]], dtype=np.uint8), cv2.COLOR_RGB2BGR).reshape(1, 3)
-    print(primary_color)
-    print(primary_color_bgr)
 
     cv2.imshow("Original", full_image)
     cv2.imshow("Average", np.full(shape=(100, 100, 3), fill_value=avg_color_bgr, dtype=np.uint8))
