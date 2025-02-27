@@ -7,38 +7,26 @@ def read_image(filename: str) -> np.array:
     Inputs: String relative/absolute path to image
     Outputs: 2d np array of pixel HLS color values, sorted by frequency
     """
-    if filename.endswith(".png"):
-        img = cv2.imread(filename, cv2.IMREAD_UNCHANGED)
-        assert isinstance(img, np.ndarray), "Image not found. Check file path?"
+    img = cv2.imread(filename, cv2.IMREAD_UNCHANGED)
+    assert isinstance(img, np.ndarray), "Image not found. Check file path?"
 
-        if max(img.shape) > 600:
-            scale_factor = 600/max(img.shape)
-            img = cv2.resize(
-                img, (int(img.shape[0]*scale_factor), int(img.shape[1]*scale_factor)), interpolation=cv2.INTER_AREA
-            )
+    if max(img.shape) > 600:
+        scale_factor = 600/max(img.shape)
+        img = cv2.resize(
+            img, (int(img.shape[0]*scale_factor), int(img.shape[1]*scale_factor)), interpolation=cv2.INTER_AREA
+        )
 
+    # Check if alpha channel is present, and if so, filter out background
+    if img.shape[2] == 4:
         img = cv2.cvtColor(img, cv2.COLOR_BGRA2RGBA)
-
         img = img.reshape(-1, 4)
         img = img[img[:, 3] > 250][:, :3]
-        img_hls = cv2.cvtColor(np.array([img]), cv2.COLOR_RGB2HLS)
-        img_hls = img_hls.reshape(-1, 3)
-
     else:
-        img = cv2.imread(filename)
-        assert isinstance(img, np.ndarray), "Image not found. Check file path?"
-
-        if max(img.shape) > 600:
-            scale_factor = 600/max(img.shape)
-            print(scale_factor)
-            img = cv2.resize(
-                img, (int(img.shape[0]*scale_factor), int(img.shape[1]*scale_factor)), interpolation=cv2.INTER_AREA
-            )
-
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img = img.reshape(-1, 3)
-        img_hls = cv2.cvtColor(np.array([img]), cv2.COLOR_RGB2HLS)
-        img_hls = img_hls.reshape(-1, 3)
+
+    img_hls = cv2.cvtColor(np.array([img]), cv2.COLOR_RGB2HLS)
+    img_hls = img_hls.reshape(-1, 3)
     
     return img, img_hls
 
@@ -156,7 +144,7 @@ def get_primary_color(img: np.array, frequencies, avg_color: np.array, total_pix
 
 
 def main():
-    filename = "Static/volcano.jpg"
+    filename = "Static/fern.png"
     img_rgb, img_hls = read_image(filename=filename)
 
     total_pixels = len(img_rgb)
