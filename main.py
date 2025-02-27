@@ -4,8 +4,9 @@ import cv2
 
 def read_image(filename: str) -> np.array:
     """
-    Inputs: String relative/absolute path to image
-    Outputs: 2d np array of pixel HLS color values, sorted by frequency
+    Inputs: Relative/absolute path to image (string)
+    Outputs: Array of pixel HLS color values, sorted by frequency (nx3 numpy array)
+    Array of pixel RGB color values, sorted by frequency (nx3 numpy array)
     """
     img = cv2.imread(filename, cv2.IMREAD_UNCHANGED)
     assert isinstance(img, np.ndarray), "Image not found. Check file path?"
@@ -27,11 +28,17 @@ def read_image(filename: str) -> np.array:
 
     img_hls = cv2.cvtColor(np.array([img]), cv2.COLOR_RGB2HLS)
     img_hls = img_hls.reshape(-1, 3)
-    
+
     return img, img_hls
 
 
 def get_color_frequency(img: np.array, color_group_range: int):
+    """
+    Inputs: img - Image RGB color values (nx3 numpy array)
+    color_group_range - width of color groups; a small value yields higher hue accuracy, lower freq. accuracy (int)
+    Outputs: Image - Image unique color groupings (nx3 numpy array)
+    Frequencies - Corresponding frequencies of each color group in the image (n numpy array)
+    """
     rgb_vals = range(round(color_group_range // 2), int(255 + color_group_range / 1.5), color_group_range)
 
     groupings = np.zeros(shape=(len(rgb_vals)**3, 3), dtype=np.uint8)
@@ -75,19 +82,22 @@ def get_color_frequency(img: np.array, color_group_range: int):
 
 def get_primary_color(img: np.array, frequencies, avg_color: np.array, total_pixels: int):
     """
-    Inputs: Image (n*3 array of HLS color values)
-    Image color frequency (n length np array of color frequencies)
-    Image average color (1x3 NP array of RGB value)
-    Outputs: Tuple containing RGB color values of primary color
+    Inputs: img - Image HLS color values (nx3 numpy array)
+    frequencies - Image color frequency (n length np array)
+    avg_color - Image average HLS color (1x3 np array)
+    total_pixels - Amount of pixels in original image after resize (int)
+    Outputs: RGB color values of primary color (1x3 np array)
     """
 
     # Convert to float to do math
     img = img.astype(dtype=np.float32)
     frequencies = frequencies.astype(dtype=np.float32)
+
+    # Initialize NP arrays to group colors into
     frequencies = frequencies[frequencies > 1]
     img = img[0:len(frequencies), :]
 
-    # PARAMETERS
+    # ADJUSTMENT PARAMETERS
     frequency_threshold = 0.02
     frequency_weight = 1.2
     saturation_min_threshold = 0.05*255
@@ -96,8 +106,8 @@ def get_primary_color(img: np.array, frequencies, avg_color: np.array, total_pix
     luminosity_min_threshold = 0.2*255
     luminosity_max_threshold = 0.3*255
     luminosity_weight = 0.25
-    distance_from_average_threshold = 50
-    distance_from_average_weight = 0.6
+    hue_difference_threshold = 50
+    hue_difference_weight = 0.6
     # hue_priority = "[equation to boost magenta color family and reduce tan]"
     # hue_weight = 0
 
@@ -109,7 +119,7 @@ def get_primary_color(img: np.array, frequencies, avg_color: np.array, total_pix
         )
     )
 
-    # Normalized saturation score. The midpoint of saturation min and max results in higher score
+    # Normalized saturation score. Being between saturation min and max results in a higher score
     saturation_score = (
             1 - 4 / (saturation_max_threshold-saturation_min_threshold)**2 *
             (img[:, 2] - (saturation_min_threshold + saturation_max_threshold)/2)**2
@@ -117,6 +127,7 @@ def get_primary_color(img: np.array, frequencies, avg_color: np.array, total_pix
     adjustment = 2 if max(saturation_score) < 0 else 0
     saturation_score = saturation_weight * (adjustment + saturation_score/abs(max(saturation_score)))
 
+    # Normalized luminosity score. Being between luminosity min and max results in a higher score
     luminosity_score = (
             1 - 4 / (luminosity_max_threshold-luminosity_min_threshold)**2 *
             (img[:, 1] - (luminosity_min_threshold + luminosity_max_threshold)/2)**2
@@ -124,14 +135,15 @@ def get_primary_color(img: np.array, frequencies, avg_color: np.array, total_pix
     adjustment = 2 if max(luminosity_score) < 0 else 0
     luminosity_score = luminosity_weight * (adjustment + luminosity_score/abs(max(luminosity_score)))
 
-    distance_from_average_score = (
-            1 - 1 / distance_from_average_threshold**2 *
+    # Normalized hue score. A lower hue difference than the average image hue results in a higher score
+    hue_difference_score = (
+            1 - 1 / hue_difference_threshold**2 *
             (img[:, 0] - avg_color[0])**2
     )
-    adjustment = 2 if max(distance_from_average_score) < 0 else 0
-    distance_from_average_score = distance_from_average_weight * (adjustment + distance_from_average_score)/abs(max(distance_from_average_score))
+    adjustment = 2 if max(hue_difference_score) < 0 else 0
+    hue_difference_score = hue_difference_weight * (adjustment + hue_difference_score)/abs(max(hue_difference_score))
 
-    final_score = frequency_score + saturation_score + luminosity_score + distance_from_average_score
+    final_score = frequency_score + saturation_score + luminosity_score + hue_difference_score
 
     idx = final_score.argmax()
     score = final_score[idx]
@@ -143,7 +155,7 @@ def get_primary_color(img: np.array, frequencies, avg_color: np.array, total_pix
     print(f"Frequency Score: {frequency_score[idx]}")
     print(f"Saturation Score: {saturation_score[idx]}")
     print(f"Luminosity Score: {luminosity_score[idx]}")
-    print(f"Distance from Average Score: {distance_from_average_score[idx]}")
+    print(f"Hue Difference Score: {hue_difference_score[idx]}")
     #print(score)
     #print(frequencies[idx])
 
