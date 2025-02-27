@@ -1,5 +1,6 @@
 import numpy as np
 import cv2
+import logging
 
 
 def read_image(filename: str) -> np.array:
@@ -80,13 +81,13 @@ def get_color_frequency(img: np.array, color_group_range: int):
     return groupings[:, 0:3], groupings[:, 3]
 
 
-def get_primary_color(img: np.array, frequencies, avg_color: np.array, total_pixels: int):
+def get_primary_color(img: np.ndarray, frequencies, avg_color: np.ndarray, total_pixels: int):
     """
     Inputs: img - Image HLS color values (nx3 numpy array)
     frequencies - Image color frequency (n length np array)
     avg_color - Image average HLS color (1x3 np array)
     total_pixels - Amount of pixels in original image after resize (int)
-    Outputs: RGB color values of primary color (1x3 np array)
+    Outputs: RGB and HLS color values of primary color (1x3 np arrays)
     """
 
     # Convert to float to do math
@@ -147,23 +148,106 @@ def get_primary_color(img: np.array, frequencies, avg_color: np.array, total_pix
 
     idx = final_score.argmax()
     score = final_score[idx]
-    color = img[idx, :].astype(np.uint8)
+    primary_color_hls = img[idx, :].astype(np.uint8)
 
-    primary_color = cv2.cvtColor(np.array([[img[idx, :]]], dtype=np.uint8), cv2.COLOR_HLS2RGB)
-    #print(color)
-    #print(primary_color)
+    primary_color_rgb = cv2.cvtColor(np.array([[img[idx, :]]], dtype=np.uint8), cv2.COLOR_HLS2RGB)
+    # print(color)
+    # print(primary_color)
     print(f"Frequency Score: {frequency_score[idx]}")
     print(f"Saturation Score: {saturation_score[idx]}")
     print(f"Luminosity Score: {luminosity_score[idx]}")
     print(f"Hue Difference Score: {hue_difference_score[idx]}")
-    #print(score)
-    #print(frequencies[idx])
+    # print(score)
+    # print(frequencies[idx])
 
-    return primary_color.reshape(3)
+    return primary_color_rgb.reshape(3), primary_color_hls
+
+
+def get_accent_color(img: np.ndarray, frequencies, avg_color: np.ndarray, total_pixels: int, primary_color: np.ndarray):
+    """
+    Inputs: img - Image HLS color values (nx3 numpy array)
+    frequencies - Image color frequency (n length np array)
+    avg_color - Image average HLS color (1x3 np array)
+    total_pixels - Amount of pixels in original image after resize (int)
+    primary_color - Output of get_primary color (1x3 np array)
+    Outputs: RGB and HLS color values of accent color (1x3 np arrays)
+    """
+
+    # Convert to float to do math
+    img = img.astype(dtype=np.float32)
+    frequencies = frequencies.astype(dtype=np.float32)
+
+    # Initialize NP arrays to group colors into
+    frequencies = frequencies[frequencies > 1]
+    img = img[0:len(frequencies), :]
+
+    # ADJUSTMENT PARAMETERS
+    frequency_threshold = 0.01
+    frequency_weight = 1.2
+    saturation_min_threshold = 0.55*255
+    saturation_max_threshold = 0.95*255
+    saturation_weight = 1.75
+    luminosity_min_threshold = 0.5*255
+    luminosity_max_threshold = 0.75*255
+    luminosity_weight = 1
+    hue_difference_threshold = 50
+    hue_difference_weight = 0*0.6
+    # hue_priority = "[equation to boost magenta color family and reduce tan]"
+    # hue_weight = 0
+
+    # Normalized frequency score. Higher frequency results in higher score
+    frequency_score = frequency_weight * (
+        1 - np.power(
+            np.full(shape=frequencies.shape, fill_value=1.0005),
+            (total_pixels*frequency_threshold - frequencies)
+        )
+    )
+
+    # Normalized saturation score. Being between saturation min and max results in a higher score
+    saturation_score = (
+            1 - 4 / (saturation_max_threshold-saturation_min_threshold)**2 *
+            (img[:, 2] - (saturation_min_threshold + saturation_max_threshold)/2)**2
+    )
+    adjustment = 2 if max(saturation_score) < 0 else 0
+    saturation_score = saturation_weight * (adjustment + saturation_score/abs(max(saturation_score)))
+
+    # Normalized luminosity score. Being between luminosity min and max results in a higher score
+    luminosity_score = (
+            1 - 4 / (luminosity_max_threshold-luminosity_min_threshold)**2 *
+            (img[:, 1] - (luminosity_min_threshold + luminosity_max_threshold)/2)**2
+    )
+    adjustment = 2 if max(luminosity_score) < 0 else 0
+    luminosity_score = luminosity_weight * (adjustment + luminosity_score/abs(max(luminosity_score)))
+
+    # Normalized hue score. A lower hue difference than the average image hue results in a higher score
+    hue_difference_score = (
+            1 - 1 / hue_difference_threshold**2 *
+            (img[:, 0] - avg_color[0])**2
+    )
+    adjustment = 2 if max(hue_difference_score) < 0 else 0
+    hue_difference_score = hue_difference_weight * (adjustment + hue_difference_score)/abs(max(hue_difference_score))
+
+    final_score = frequency_score + saturation_score + luminosity_score + hue_difference_score
+
+    idx = final_score.argmax()
+    score = final_score[idx]
+    accent_color_hls = img[idx, :].astype(np.uint8)
+
+    accent_color_rgb = cv2.cvtColor(np.array([[img[idx, :]]], dtype=np.uint8), cv2.COLOR_HLS2RGB)
+    # print(color)
+    # print(accent_color)
+    print(f"Frequency Score: {frequency_score[idx]}")
+    print(f"Saturation Score: {saturation_score[idx]}")
+    print(f"Luminosity Score: {luminosity_score[idx]}")
+    print(f"Hue Difference Score: {hue_difference_score[idx]}")
+    # print(score)
+    # print(frequencies[idx])
+
+    return accent_color_rgb.reshape(3), accent_color_hls
 
 
 def main():
-    filename = "Static/volcano.jpg"
+    filename = "Static/fern.png"
     img_rgb, img_hls = read_image(filename=filename)
 
     total_pixels = len(img_rgb)
@@ -175,17 +259,28 @@ def main():
 
     img_hls, frequencies = get_color_frequency(img=img_rgb, color_group_range=15)
 
-    primary_color = get_primary_color(img=img_hls, frequencies=frequencies, avg_color=avg_color_hls, total_pixels=total_pixels)
+    primary_color, primary_color_hls = get_primary_color(
+        img=img_hls, frequencies=frequencies, avg_color=avg_color_hls, total_pixels=total_pixels
+    )
     print(f"Primary Color (RGB): {primary_color}")
+    print(f"Primary Color (HLS): {primary_color_hls}")
+
+    accent_color, accent_color_hls = get_accent_color(
+        img=img_hls, frequencies=frequencies, avg_color=avg_color_hls,
+        total_pixels=total_pixels, primary_color=primary_color_hls
+    )
+    print(f"Accent Color (RGB): {accent_color}")
+    print(f"Accent Color (HLS): {accent_color_hls}")
 
     full_image = cv2.imread(filename=filename, flags=cv2.IMREAD_UNCHANGED)
 
     avg_color_bgr = cv2.cvtColor(np.array([[avg_color]], dtype=np.uint8), cv2.COLOR_RGB2BGR).reshape(1, 3)
     primary_color_bgr = cv2.cvtColor(np.array([[primary_color]], dtype=np.uint8), cv2.COLOR_RGB2BGR).reshape(1, 3)
-
+    accent_color_bgr = cv2.cvtColor(np.array([[accent_color]], dtype=np.uint8), cv2.COLOR_RGB2BGR).reshape(1, 3)
     cv2.imshow("Original", full_image)
     cv2.imshow("Average", np.full(shape=(100, 100, 3), fill_value=avg_color_bgr, dtype=np.uint8))
     cv2.imshow("Primary", np.full(shape=(100, 100, 3), fill_value=primary_color_bgr, dtype=np.uint8))
+    cv2.imshow("Accent", np.full(shape=(100, 100, 3), fill_value=accent_color_bgr, dtype=np.uint8))
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
