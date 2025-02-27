@@ -235,7 +235,6 @@ def get_accent_color(img: np.ndarray, frequencies, avg_color: np.ndarray, total_
         180 - hue_diff,
         hue_diff
     )
-    print(hue_diff)
 
     hue_difference_score = hue_difference_weight * np.minimum(
             1 / hue_difference_threshold**2 * hue_diff**2 - 1,
@@ -269,7 +268,7 @@ def get_accent_color(img: np.ndarray, frequencies, avg_color: np.ndarray, total_
 
 
 def main():
-    filename = "Static/firefox_bkgd.jpg"
+    filename = "Static/volcano.jpg"
     img_rgb, img_hls = read_image(filename=filename)
 
     total_pixels = len(img_rgb)
