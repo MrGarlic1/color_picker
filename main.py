@@ -104,9 +104,9 @@ def get_primary_color(img: np.ndarray, frequencies, avg_color: np.ndarray, total
     frequency_weight = 1.2
     saturation_min_threshold = 0.05*255
     saturation_max_threshold = 0.65*255
-    saturation_weight = 1
-    luminosity_min_threshold = 0.2*255
-    luminosity_max_threshold = 0.3*255
+    saturation_weight = 1.5
+    luminosity_min_threshold = 0.15*255
+    luminosity_max_threshold = 0.25*255
     luminosity_weight = 0.25
     hue_difference_threshold = 50
     hue_difference_weight = 0.6
@@ -171,7 +171,7 @@ def get_primary_color(img: np.ndarray, frequencies, avg_color: np.ndarray, total
     return primary_color_rgb.reshape(3), primary_color_hls
 
 
-def get_accent_color(img: np.ndarray, frequencies, avg_color: np.ndarray, total_pixels: int, primary_color: np.ndarray):
+def get_accent_color(img: np.ndarray, frequencies, total_pixels: int, primary_color: np.ndarray):
     """
     Inputs: img - Image HLS color values (nx3 numpy array)
     frequencies - Image color frequency (n length np array)
@@ -190,18 +190,17 @@ def get_accent_color(img: np.ndarray, frequencies, avg_color: np.ndarray, total_
     img = img[0:len(frequencies), :]
 
     # ADJUSTMENT PARAMETERS
-    frequency_threshold = 0.02
-    frequency_weight = 1.2
-    saturation_min_threshold = 0.55*255
+    frequency_threshold = 0.03
+    frequency_weight = 0.5
+    saturation_min_threshold = 0.35*255
     saturation_max_threshold = 0.95*255
-    saturation_weight = 2
-    luminosity_min_threshold = 0.5*255
+    saturation_weight = 1.5
+    luminosity_min_threshold = 0.6*255
     luminosity_max_threshold = 0.75*255
-    luminosity_weight = 0.5
-    hue_difference_threshold = 50
-    hue_difference_weight = 1
-    # hue_priority = "[equation to boost magenta color family and reduce tan]"
-    # hue_weight = 0
+    luminosity_weight = 0.05
+    hue_difference_threshold = 14
+    hue_difference_weight = 0.8
+    hue_priority_ranges = ((125, 145, 1), (15, 25, -.5))
 
     # Normalized frequency score. Higher frequency results in higher score
     frequency_score = frequency_weight * (
@@ -216,7 +215,9 @@ def get_accent_color(img: np.ndarray, frequencies, avg_color: np.ndarray, total_
             1 - 4 / (saturation_max_threshold-saturation_min_threshold)**2 *
             (img[:, 2] - (saturation_min_threshold + saturation_max_threshold)/2)**2
     )
+
     adjustment = 2 if max(saturation_score) < 0 else 0
+
     saturation_score = saturation_weight * (adjustment + saturation_score/abs(max(saturation_score)))
 
     # Normalized luminosity score. Being between luminosity min and max results in a higher score
@@ -227,7 +228,7 @@ def get_accent_color(img: np.ndarray, frequencies, avg_color: np.ndarray, total_
     adjustment = 2 if max(luminosity_score) < 0 else 0
     luminosity_score = luminosity_weight * (adjustment + luminosity_score/abs(max(luminosity_score)))
 
-    # Normalized hue score. A higher hue difference than the primary image hue results in a higher score, capped at 1
+    # Normalized hue difference score. A higher difference from primary image hue results in a higher score, capped at 1
 
     hue_diff = np.abs(img[:, 0] - primary_color[0])
     hue_diff = np.where(
@@ -241,7 +242,12 @@ def get_accent_color(img: np.ndarray, frequencies, avg_color: np.ndarray, total_
             1
     )
 
-    final_score = frequency_score + saturation_score + luminosity_score + hue_difference_score
+    # Hue weights
+    hue_score = np.zeros(shape=len(img))
+    for color_range in hue_priority_ranges:
+        hue_score += np.where((img[:, 0] > color_range[0]) & (img[:, 0] < color_range[1]), color_range[2], 0)
+
+    final_score = frequency_score + saturation_score + luminosity_score + hue_difference_score + hue_score
 
     idx = final_score.argmax()
     score = final_score[idx]
@@ -253,6 +259,7 @@ def get_accent_color(img: np.ndarray, frequencies, avg_color: np.ndarray, total_
     print(f"Saturation Score: {saturation_score[idx]}")
     print(f"Luminosity Score: {luminosity_score[idx]}")
     print(f"Hue Difference Score: {hue_difference_score[idx]}")
+    print(f"Hue Score: {hue_score[idx]}")
     # print(score)
     # print(frequencies[idx])
 
@@ -268,7 +275,7 @@ def get_accent_color(img: np.ndarray, frequencies, avg_color: np.ndarray, total_
 
 
 def main():
-    filename = "Static/volcano.jpg"
+    filename = "Static/japan_flag.jpg"
     img_rgb, img_hls = read_image(filename=filename)
 
     total_pixels = len(img_rgb)
@@ -278,7 +285,7 @@ def main():
     print(f"Average Color (HLS): {avg_color_hls}")
     print(f"Image Pixels: {total_pixels}")
 
-    img_hls, frequencies = get_color_frequency(img=img_rgb, color_group_range=15)
+    img_hls, frequencies = get_color_frequency(img=img_rgb, color_group_range=25)
 
     primary_color, primary_color_hls = get_primary_color(
         img=img_hls, frequencies=frequencies, avg_color=avg_color_hls, total_pixels=total_pixels
@@ -287,8 +294,7 @@ def main():
     print(f"Primary Color (HLS): {primary_color_hls}")
 
     accent_color, accent_color_hls = get_accent_color(
-        img=img_hls, frequencies=frequencies, avg_color=avg_color_hls,
-        total_pixels=total_pixels, primary_color=primary_color_hls
+        img=img_hls, frequencies=frequencies, total_pixels=total_pixels, primary_color=primary_color_hls
     )
     print(f"Accent Color (RGB): {accent_color}")
     print(f"Accent Color (HLS): {accent_color_hls}")
