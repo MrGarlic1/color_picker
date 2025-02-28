@@ -102,10 +102,10 @@ def get_primary_color(img: np.ndarray, frequencies, avg_color: np.ndarray, total
     # ADJUSTMENT PARAMETERS
     frequency_threshold = 0.03
     frequency_weight = 1.2
-    saturation_min_threshold = 0.05*255
+    saturation_min_threshold = 0.15*255
     saturation_max_threshold = 0.65*255
     saturation_weight = 1.5
-    luminosity_min_threshold = 0.15*255
+    luminosity_min_threshold = 0.19*255
     luminosity_max_threshold = 0.25*255
     luminosity_weight = 0.25
     hue_difference_threshold = 50
@@ -191,16 +191,16 @@ def get_accent_color(img: np.ndarray, frequencies, total_pixels: int, primary_co
 
     # ADJUSTMENT PARAMETERS
     frequency_threshold = 0.03
-    frequency_weight = 0.5
+    frequency_weight = 0.49
     saturation_min_threshold = 0.35*255
     saturation_max_threshold = 0.95*255
     saturation_weight = 1.5
     luminosity_min_threshold = 0.6*255
-    luminosity_max_threshold = 0.75*255
-    luminosity_weight = 0.05
+    luminosity_max_threshold = 0.72*255
+    luminosity_weight = 0.035
     hue_difference_threshold = 14
-    hue_difference_weight = 0.8
-    hue_priority_ranges = ((125, 145, 1), (15, 25, -.5))
+    hue_difference_weight = 0.82
+    hue_priority_ranges = ((125, 145, 1.25), (15, 25, -.5))
 
     # Normalized frequency score. Higher frequency results in higher score
     frequency_score = frequency_weight * (
@@ -275,7 +275,7 @@ def get_accent_color(img: np.ndarray, frequencies, total_pixels: int, primary_co
 
 
 def main():
-    filename = "Static/japan_flag.jpg"
+    filename = "Static/garlic_pfp.png"
     img_rgb, img_hls = read_image(filename=filename)
 
     total_pixels = len(img_rgb)
